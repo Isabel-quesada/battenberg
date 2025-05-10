@@ -113,7 +113,7 @@ battenberg = function(analysis="paired",
                       javajre="java",
                       write_battenberg_phasing = T,
                       multisample_relative_weight_balanced = 0.25,
-                      multisample_maxlag = 100,
+                      multisample_maxlag = 90,
                       segmentation_gamma_multisample = 5,
                       snp6_reference_info_file=NA,
                       apt.probeset.genotype.exe="apt-probeset-genotype",
@@ -209,8 +209,6 @@ battenberg = function(analysis="paired",
     allelecounts_file = NULL
   }
   print(chrom_names) 
-  print(normalname) 
-  print(samplename) 
   for (sampleidx in 1:nsamples) {
     if (!skip_preprocessing[sampleidx]) {
       if (data_type=="wgs" | data_type=="WGS") {
@@ -442,9 +440,10 @@ battenberg = function(analysis="paired",
     doParallel::registerDoParallel(clp)
     
     # Reconstruct haplotypes
-    # mclapply(1:length(chrom_names), function(chrom) {
+    .libPaths()
     foreach::foreach (i=1:length(chrom_names)) %dopar% {
       .libPaths(libs)
+    .libPaths()
       chrom = chrom_names[i]
       print(chrom)
       
@@ -453,9 +452,7 @@ battenberg = function(analysis="paired",
                               maxlag = multisample_maxlag,
                               relative_weight_balanced = multisample_relative_weight_balanced,
                               outprefix = multisamplehaplotypeprefix)
-      
     }
-    
     
     # continue over all samples to incorporate the multisample phasing
     for (sampleidx in 1:nsamples) {
@@ -516,7 +513,6 @@ battenberg = function(analysis="paired",
                         chr_names=chrom_names)
       
     }
-    
     # Segment the phased and haplotyped BAF data
     segment.baf.phased.multisample(samplename=samplename,
                                    inputfile=paste(samplename, "_heterozygousMutBAFs_haplotyped.txt", sep=""), 
@@ -541,7 +537,7 @@ battenberg = function(analysis="paired",
       if (analysis=="paired") {
         allelecounts_file = paste(samplename[sampleidx], "_alleleCounts.tab", sep="")
       } else {
-        # Not produced by a number of analysis and is required for some plots. Setting to NULL  makes the pipeline not attempt to create these plots
+      # Not produced by a number of analysis and is required for some plots. Setting to NULL  makes the pipeline not attempt to create these plots
         allelecounts_file = NULL
       }
     }
