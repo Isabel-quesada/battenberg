@@ -187,7 +187,7 @@ write_battenberg_phasing <- function(tumourname, SNPfiles, imputedHaplotypeFiles
 #' @param outprefix Prefix of the ouput multisample phasing files
 #' @author jdemeul
 #' @export
-get_multisample_phasing <- function(chrom, bbphasingprefixes, maxlag = 90, relative_weight_balanced = .25, outprefix) {
+get_multisample_phasing <- function(chrom, bbphasingprefixes, maxlag = 100, relative_weight_balanced = .25, outprefix) {
   vcfs <- lapply(X = paste0(bbphasingprefixes, chrom, ".vcf"), FUN = VariantAnnotation::readVcf)
   samplenames <- sapply(X = vcfs, FUN = function(x) VariantAnnotation::samples(VariantAnnotation::header(x)))
   
