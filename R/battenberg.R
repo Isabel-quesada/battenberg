@@ -113,7 +113,7 @@ battenberg = function(analysis="paired",
                       javajre="java",
                       write_battenberg_phasing = T,
                       multisample_relative_weight_balanced = 0.25,
-                      multisample_maxlag = 100,
+                      multisample_maxlag = 90,
                       segmentation_gamma_multisample = 5,
                       snp6_reference_info_file=NA,
                       apt.probeset.genotype.exe="apt-probeset-genotype",
@@ -297,7 +297,8 @@ battenberg = function(analysis="paired",
                      apt.probeset.genotype.exe=apt.probeset.genotype.exe,
                      apt.probeset.summarize.exe=apt.probeset.summarize.exe,
                      norm.geno.clust.exe=norm.geno.clust.exe,
-                     birdseed_report_file=birdseed_report_file)
+                     birdseed_report_file=birdseed_report_file,
+                     genomebuild=genomebuild)
         
       } else {
         print("Unknown data type provided, please provide wgs or snp6")
@@ -594,7 +595,8 @@ battenberg = function(analysis="paired",
                         genomebuild=genomebuild,
                         AR=TRUE,
                         prior_breakpoints_file=prior_breakpoints_file,
-			chrom_names=chrom_names)
+			chrom_names=chrom_names,
+                        data_type=data_type)
     }
     
     # Make some post-hoc plots

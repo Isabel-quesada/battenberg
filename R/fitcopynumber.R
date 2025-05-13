@@ -984,7 +984,7 @@ make_posthoc_plots = function(samplename, logr_file, bafsegmented_file, logrsegm
 #' @author naser.ansari-pour
 #' @export
 
-callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=TRUE,prior_breakpoints_file=NULL,chrom_names){
+callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=TRUE,prior_breakpoints_file=NULL,chrom_names,data_type="wgs"){
   
   print(tumourname)
   
@@ -1000,7 +1000,11 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     stop("Genomebuild not supported for callChrXsubclones")
   }
   
-  PCFinput=data.frame(read_table_generic(paste0(tumourname,"_mutantLogR_gcCorrected.tab")),stringsAsFactors=F)
+  if (data_type=="wgs" | data_type=="WGS") {
+    PCFinput=data.frame(read_table_generic(paste0(tumourname,"_mutantLogR_gcCorrected.tab")),stringsAsFactors=F)
+  } else {
+    PCFinput=data.frame(read_table_generic(paste0(tumourname,"_mutantLogR.tab")),stringsAsFactors=F)
+  }
   ChrNotation=unique(PCFinput[which(!is.na(match(PCFinput$Chromosome,c("X","chrX")))),]$Chromosome) # find the chromosome notation
   PCFinput=PCFinput[which(PCFinput$Chromosome==ChrNotation & PCFinput$Position>par_regions[1] & PCFinput$Position<par_regions[2]),] # get nonPAR using par_regions based on genomebuild
   colnames(PCFinput)[3]=tumourname
@@ -1011,25 +1015,25 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     sv=sv[which(!is.na(match(sv$chr,c("X","chrX")))),]
     # check if there are breakpoints within chrX
     if (nrow(sv)>0){
-    # make sure all SV breakpoint positions are within the LogR data range and not outside of it  
-    svpos=sv[which((sv$pos > min(PCFinput$Position)) & (sv$pos < max(PCFinput$Position))),"pos"]
-    breakpoints=c(min(PCFinput$Position),svpos,max(PCFinput$Position))
-    PCF=data.frame()
-    for (j in 1:(length(breakpoints)-1)) {
-      PCFinput_sv=PCFinput[which(PCFinput$Position>=breakpoints[j] & PCFinput$Position<breakpoints[j+1]),]
-      # in case there is no SNP between two SVs on chrX
-      if (nrow(PCFinput_sv)==0) next
-      PCF_sv=copynumber::pcf(PCFinput_sv,gamma=X_gamma,kmin=X_kmin)
-      PCF=rbind(PCF,PCF_sv)
-    }
-  }
+      # make sure all SV breakpoint positions are within the LogR data range and not outside of it  
+      svpos=sv[which((sv$pos > min(PCFinput$Position)) & (sv$pos < max(PCFinput$Position))),"pos"]
+      breakpoints=c(min(PCFinput$Position),svpos,max(PCFinput$Position))
+      PCF=data.frame()
+      for (j in 1:(length(breakpoints)-1)) {
+        PCFinput_sv=PCFinput[which(PCFinput$Position>=breakpoints[j] & PCFinput$Position<breakpoints[j+1]),]
+        # in case there is no SNP between two SVs on chrX
+        if (nrow(PCFinput_sv)==0) next
+        PCF_sv=copynumber::pcf(PCFinput_sv,gamma=X_gamma,kmin=X_kmin)
+        PCF=rbind(PCF,PCF_sv)
+      }
     } else {
+      PCF=copynumber::pcf(PCFinput,gamma=X_gamma,kmin=X_kmin)
+    }
+  } else {
     PCF=copynumber::pcf(PCFinput,gamma=X_gamma,kmin=X_kmin)
   }
   write.table(PCF,paste0(tumourname,"_PCF_gamma_",X_gamma,"_chrX.txt"),col.names=T,row.names=F,quote=F,sep="\t")
   print("PCF segmentation done")
-  
-  
   
   # INPUT for copy number inference
   SAMPLEsegs=data.frame(PCF,stringsAsFactors=F)
