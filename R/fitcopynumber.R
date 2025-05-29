@@ -291,7 +291,22 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   subcloneres_subclonal=subcloneres[which(subcloneres$frac1_A<1),]
   diploid=which(subcloneres$nMaj1_A==1 & subcloneres$nMin1_A==1 & subcloneres$frac1_A==1)
   cna=subcloneres[-diploid,]
-  goodness=1-sum(subcloneres_subclonal$length)/sum(cna$length)
+
+  if(nrow(cna) == 0 || sum(cna$length) == 0) {
+    # No copy number alterations found
+    goodness <- 1.0  # 100% clonal (no CNAs to be subclonal)
+    print("No copy number alterations detected - setting PGA.is.clonal to 100%\n")
+  } else if(nrow(subcloneres_subclonal) == 0) {
+    # No subclonal segments
+    goodness <- 1.0  # 100% clonal
+    print("No subclonal segments detected - setting PGA.is.clonal to 100%\n")
+  } else {
+    subclonal_fraction <- sum(subcloneres_subclonal$length) / sum(cna$length)
+    goodness <- 1 - subclonal_fraction
+  
+    # Ensure goodness is within valid range [0,1]
+    goodness <- max(0, min(1, goodness))
+  }
   print(paste0("PGA.is.clonal = ",sprintf("%2.1f",goodness*100),"%"))
   
   ################################################################################################
