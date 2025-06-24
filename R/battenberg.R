@@ -61,7 +61,8 @@
 #' @param write_battenberg_phasing Write the Battenberg phasing results as vcf to disk, e.g. for multisample cases (Default: TRUE)
 #' @param multisample_maxlag Maximal number of upstream SNPs used in the multisample haplotyping to inform the haplotype at another SNP (Default: 100)
 #' @param multisample_relative_weight_balanced Relative weight to give to haplotype info from a sample without allelic imbalance in the region (Default: 0.25)
-#' @author sd11, jdemeul, Naser Ansari-Pour
+#' @param enhanced_grid_search Should use multi-start, parallelized and multi-approach grid search (Default: FALSE)
+#' @author sd11, jdemeul, Naser Ansari-Pour, Julio Cesar Cortes Rios
 #' @export
 battenberg = function(analysis="paired",
                       samplename,
@@ -123,7 +124,8 @@ battenberg = function(analysis="paired",
                       heterozygousFilter="none",
                       prior_breakpoints_file=NULL,
                       genomebuild="hg19",
-                      chrom_coord_file=NULL) {
+                      chrom_coord_file=NULL,
+		      enhanced_grid_search = F) {
 
   requireNamespace("foreach")
   requireNamespace("doParallel")
@@ -562,7 +564,9 @@ battenberg = function(analysis="paired",
                     preset_rho=NA,
                     preset_psi=NA,
                     read_depth=30,
-                    analysis=analysis)
+                    analysis=analysis,
+                    nthreads=nthreads,
+                    enhanced_grid_search=enhanced_grid_search)
     
     # Go over all segments, determine which segements are a mixture of two states and fit a second CN state
     print("callSubclones")
