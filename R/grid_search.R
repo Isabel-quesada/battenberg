@@ -1,14 +1,19 @@
+#' Key optimizations:
+#' 1. Early termination after first good solution (like original)
+#' 2. Vectorized distance calculations
+#' 3. Optimized constraint checking
+#' 4. Smart search ordering (best regions first)
+#' 5. Reduced memory allocations
 runASCAT_enhanced = function(lrr, baf, lrrsegmented, bafsegmented, chromosomes, dist_choice,
-                               distancepng = NA, copynumberprofilespng = NA, nonroundedprofilepng = NA,
-                               cnaStatusFile = "copynumber_solution_status.txt", gamma = 0.55, allow100percent,
-                               reliabilityFile=NA, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1, max.rho=1.0,
-                               min.goodness=63, uninformative_BAF_threshold = 0.51, chr.names, analysis="paired",
-                               enable_robust_fallback = TRUE, verbose = TRUE, parallel = TRUE,
-                               n_cores = NULL) {
+                             distancepng = NA, copynumberprofilespng = NA, nonroundedprofilepng = NA,
+                             cnaStatusFile = "copynumber_solution_status.txt", gamma = 0.55, allow100percent,
+                             reliabilityFile=NA, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1, max.rho=1.0,
+                             min.goodness=63, uninformative_BAF_threshold = 0.51, chr.names, analysis="paired",
+                             smart_ordering = TRUE, early_termination = TRUE, verbose = TRUE) {
 
   start_time <- Sys.time()
 
-  # Setup data processing (identical to original)
+  # Setup data processing (IDENTICAL to original)
   ch = chromosomes
   b = bafsegmented
   r = lrrsegmented[names(bafsegmented)]
@@ -32,444 +37,358 @@ runASCAT_enhanced = function(lrr, baf, lrrsegmented, bafsegmented, chromosomes, 
     d = -d
   }
 
-  if (verbose) cat("Phase 1: Original grid search optimization...\n")
-
-  # PHASE 1: Run original algorithm exactly (fastest path)
-  original_results <- run_original_battenberg_search(d, s, gamma, min.ploidy, max.ploidy,
-                                                     min.rho, max.rho, min.goodness,
-                                                     TheoretMaxdist, minimise, allow100percent, verbose)
-
-  # Check if original method succeeded with good quality
-  if (length(original_results) > 0) {
-    best_original <- original_results[[which.max(sapply(original_results, function(x) x$goodness))]]
-
-    # Accept original result if it's high quality OR if robust fallback is disabled
-    if (!enable_robust_fallback || best_original$goodness >= (min.goodness + 5)) {
-      optimization_time <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-
-      if (verbose) {
-        cat("Original search succeeded in", round(optimization_time, 2), "seconds\n")
-        cat("Best solution: rho =", round(best_original$rho, 3), ", psi =", round(best_original$psi, 3),
-            ", ploidy =", round(best_original$ploidy, 3), ", goodness =", round(best_original$goodness, 2), "\n")
-      }
-
-      # Generate output using original result
-      result <- finalize_battenberg_result(best_original, original_results, optimization_time,
-                                          analysis, distancepng, copynumberprofilespng, nonroundedprofilepng,
-                                          d, minimise, b, r, s, gamma, ch, lrr, bafsegmented,
-                                          chr.names, reliabilityFile, cnaStatusFile, verbose)
-      return(result)
-    }
-
-    if (verbose) {
-      cat("Original search found solution (goodness=", round(best_original$goodness, 2),
-          ") but quality is marginal. Trying enhanced search...\n")
-    }
-  } else {
-    if (verbose) cat("Original search found no solutions. Trying enhanced search...\n")
-  }
-
-  # PHASE 2: Enhanced search only if needed
-  if (!enable_robust_fallback) {
-    if (verbose) cat("Robust fallback disabled. No solution found.\n")
-    write.table("no copy number solutions found", file=cnaStatusFile, quote=F, col.names=F, row.names=F)
-    return(list(psi = NA, rho = NA, ploidy = NA, convergence_info = list(converged = FALSE)))
-  }
-
-  if (verbose) cat("Phase 2: Enhanced targeted search...\n")
-
-  # Setup parallel processing only if needed
-  if (parallel) {
-    hpc_info <- setup_parallel_environment(n_cores, verbose)
-    n_cores <- hpc_info$n_cores
-  }
-
-  # Smart targeted search based on distance matrix analysis
-  enhanced_results <- run_enhanced_targeted_search(d, s, gamma, min.ploidy, max.ploidy,
-                                                   min.rho, max.rho, min.goodness,
-                                                   TheoretMaxdist, minimise, allow100percent,
-                                                   parallel, n_cores, verbose)
-
-  # Combine results if we have both
-  all_results <- c(original_results, enhanced_results)
-
-  if (length(all_results) == 0) {
-    if (verbose) cat("Phase 3: Fallback search with relaxed constraints...\n")
-
-    # PHASE 3: Last resort with relaxed constraints
-    fallback_results <- run_fallback_search(d, s, gamma, min.ploidy, max.ploidy,
-                                           min.rho, max.rho, min.goodness,
-                                           TheoretMaxdist, minimise, allow100percent, verbose)
-    all_results <- fallback_results
-  }
-
-  # Final result processing
-  if (length(all_results) == 0) {
-    write.table("no copy number solutions found", file=cnaStatusFile, quote=F, col.names=F, row.names=F)
-    if (verbose) cat("No suitable copy number solution found\n")
-    return(list(psi = NA, rho = NA, ploidy = NA, convergence_info = list(converged = FALSE)))
-  }
-
-  # Select best result
-  best_result <- all_results[[which.max(sapply(all_results, function(x) x$goodness))]]
-  optimization_time <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-
   if (verbose) {
-    cat("Enhanced search completed in", round(optimization_time, 2), "seconds\n")
-    cat("Best solution: rho =", round(best_result$rho, 3), ", psi =", round(best_result$psi, 3),
-        ", ploidy =", round(best_result$ploidy, 3), ", goodness =", round(best_result$goodness, 2), "\n")
+    cat("Optimized Battenberg with smart ordering and early termination...\n")
   }
 
-  result <- finalize_battenberg_result(best_result, all_results, optimization_time,
-                                      analysis, distancepng, copynumberprofilespng, nonroundedprofilepng,
-                                      d, minimise, b, r, s, gamma, ch, lrr, bafsegmented,
-                                      chr.names, reliabilityFile, cnaStatusFile, verbose)
-  return(result)
-}
-
-#' Run original Battenberg search algorithm exactly
-run_original_battenberg_search <- function(d, s, gamma, min.ploidy, max.ploidy, min.rho, max.rho,
-                                          min.goodness, TheoretMaxdist, minimise, allow100percent, verbose) {
-
-  results <- list()
-
-  # Original algorithm: 7x7 local search
-  for (i in 4:(dim(d)[1]-3)) {
-    for (j in 4:(dim(d)[2]-3)) {
-      m = d[i,j]
-      seld = d[(i-3):(i+3),(j-3):(j+3)]
-      seld[4,4] = max(seld)
-
-      if(min(seld) > m) {
-        psi = as.numeric(rownames(d)[i])
-        rho = as.numeric(colnames(d)[j])
-
-        # Calculate solution
-        solution <- calculate_battenberg_solution(psi, rho, s, gamma, min.ploidy, max.ploidy,
-                                                 min.rho, max.rho, min.goodness, m,
-                                                 TheoretMaxdist, minimise, allow100percent)
-
-        if (!is.null(solution)) {
-          results[[length(results) + 1]] <- solution
-        }
-      }
-    }
-  }
-
-  # Handle 100% aberrant case if needed (original logic)
-  if (allow100percent && length(results) == 0) {
-    cold = which(as.numeric(colnames(d)) > 1)
-    d[,cold] = 1E20
-
-    for (i in 4:(dim(d)[1]-3)) {
-      for (j in 4:(dim(d)[2]-3)) {
-        m = d[i,j]
-        seld = d[(i-3):(i+3),(j-3):(j+3)]
-        seld[4,4] = max(seld)
-
-        if(min(seld) > m) {
-          psi = as.numeric(rownames(d)[i])
-          rho = as.numeric(colnames(d)[j])
-
-          solution <- calculate_battenberg_solution(psi, rho, s, gamma, min.ploidy, max.ploidy,
-                                                   min.rho, max.rho, min.goodness, m,
-                                                   TheoretMaxdist, minimise, allow100percent,
-                                                   skip_zero_check = TRUE)
-
-          if (!is.null(solution)) {
-            results[[length(results) + 1]] <- solution
-          }
-        }
-      }
-    }
-  }
-
-  if (verbose && length(results) > 0) {
-    cat("  Original search found", length(results), "solutions\n")
-  }
-
-  return(results)
-}
-
-#' Enhanced targeted search - focuses on most promising regions
-run_enhanced_targeted_search <- function(d, s, gamma, min.ploidy, max.ploidy, min.rho, max.rho,
-                                        min.goodness, TheoretMaxdist, minimise, allow100percent,
-                                        parallel, n_cores, verbose) {
-
-  # Identify promising regions from distance matrix
-  finite_d <- d[is.finite(d)]
-  if (length(finite_d) == 0) return(list())
-
-  # Focus on top 10% of distance values
-  threshold <- quantile(finite_d, 0.1, na.rm = TRUE)
-  promising_indices <- which(d <= threshold & is.finite(d), arr.ind = TRUE)
-
-  if (nrow(promising_indices) == 0) return(list())
-
-  # Limit to reasonable number of points for speed
-  max_points <- min(50, nrow(promising_indices))
-  if (nrow(promising_indices) > max_points) {
-    sample_indices <- sample(nrow(promising_indices), max_points)
-    promising_indices <- promising_indices[sample_indices, ]
-  }
-
-  if (verbose) cat("  Testing", nrow(promising_indices), "promising regions\n")
-
-  # Optimize each promising point
-  optimize_point <- function(idx) {
-    tryCatch({
-      row_idx <- promising_indices[idx, 1]
-      col_idx <- promising_indices[idx, 2]
-
-      psi <- as.numeric(rownames(d)[row_idx])
-      rho <- as.numeric(colnames(d)[col_idx])
-      m <- d[row_idx, col_idx]
-
-      # Enhanced local search around this point
-      best_solution <- NULL
-      best_distance <- Inf
-
-      # Search 5x5 neighborhood
-      for (di in -2:2) {
-        for (dj in -2:2) {
-          ni <- row_idx + di
-          nj <- col_idx + dj
-
-          if (ni >= 1 && ni <= nrow(d) && nj >= 1 && nj <= ncol(d) && is.finite(d[ni, nj])) {
-            psi_test <- as.numeric(rownames(d)[ni])
-            rho_test <- as.numeric(colnames(d)[nj])
-            m_test <- d[ni, nj]
-
-            solution <- calculate_battenberg_solution(psi_test, rho_test, s, gamma, min.ploidy, max.ploidy,
-                                                     min.rho, max.rho, min.goodness, m_test,
-                                                     TheoretMaxdist, minimise, allow100percent)
-
-            if (!is.null(solution) && solution$distance < best_distance) {
-              best_solution <- solution
-              best_distance <- solution$distance
-            }
-          }
-        }
-      }
-
-      return(best_solution)
-    }, error = function(e) {
-      return(NULL)
-    })
-  }
-
-  # Run optimization
-  if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
-    tryCatch({
-      solutions <- future.apply::future_lapply(1:nrow(promising_indices), optimize_point, future.seed = TRUE)
-      solutions <- solutions[!sapply(solutions, is.null)]
-    }, error = function(e) {
-      if (verbose) cat("  Parallel processing failed, using sequential\n")
-      solutions <- lapply(1:nrow(promising_indices), optimize_point)
-      solutions <- solutions[!sapply(solutions, is.null)]
-    })
-  } else {
-    solutions <- lapply(1:nrow(promising_indices), optimize_point)
-    solutions <- solutions[!sapply(solutions, is.null)]
-  }
-
-  if (verbose && length(solutions) > 0) {
-    cat("  Enhanced search found", length(solutions), "solutions\n")
-  }
-
-  return(solutions)
-}
-
-#' Fallback search with relaxed constraints
-run_fallback_search <- function(d, s, gamma, min.ploidy, max.ploidy, min.rho, max.rho,
-                               min.goodness, TheoretMaxdist, minimise, allow100percent, verbose) {
-
-  # More relaxed constraints
-  relaxed_min.ploidy <- max(1.0, min.ploidy - 0.3)
-  relaxed_max.ploidy <- min(6.0, max.ploidy + 0.5)
-  relaxed_min.rho <- max(0.05, min.rho - 0.05)
-  relaxed_max.rho <- min(1.0, max.rho + 0.05)
-  relaxed_min.goodness <- max(30, min.goodness - 25)
-
-  if (verbose) {
-    cat("  Using relaxed constraints: ploidy=[", round(relaxed_min.ploidy, 2), ",", round(relaxed_max.ploidy, 2),
-        "], rho=[", round(relaxed_min.rho, 2), ",", round(relaxed_max.rho, 2),
-        "], goodness>=", round(relaxed_min.goodness, 1), "\n")
-  }
-
-  # Test a broader but still targeted set of points
+  # Pre-compute values for speed
   rho_values <- as.numeric(colnames(d))
   psi_values <- as.numeric(rownames(d))
+  s_length <- s[,"length"]
+  s_b <- s[,"b"]
+  s_r <- s[,"r"]
+  total_length <- sum(s_length)
 
-  # Create strategic grid
-  test_rhos <- seq(relaxed_min.rho, relaxed_max.rho, length.out = 20)
-  test_psis <- seq(relaxed_min.ploidy, relaxed_max.ploidy, length.out = 20)
+  # Create search order - most promising regions first
+  search_order <- create_smart_search_order(d, smart_ordering, verbose)
 
-  results <- list()
+  # OPTIMIZED SEARCH with early termination
+  nropt = 0
+  localmin = NULL
+  optima = list()
+  points_checked = 0
 
-  for (test_rho in test_rhos) {
-    for (test_psi in test_psis) {
-      rho_idx <- which.min(abs(rho_values - test_rho))
-      psi_idx <- which.min(abs(psi_values - test_psi))
+  for (idx in 1:length(search_order)) {
+    point <- search_order[[idx]]
+    i <- point$i
+    j <- point$j
+    points_checked <- points_checked + 1
 
-      if (is.finite(d[psi_idx, rho_idx])) {
-        m <- d[psi_idx, rho_idx]
+    m = d[i,j]
+    if (!is.finite(m)) next
 
-        solution <- calculate_battenberg_solution(test_psi, test_rho, s, gamma,
-                                                 relaxed_min.ploidy, relaxed_max.ploidy,
-                                                 relaxed_min.rho, relaxed_max.rho,
-                                                 relaxed_min.goodness, m,
-                                                 TheoretMaxdist, minimise, allow100percent)
+    # Fast local minimum check (7x7 like original for speed)
+    if (is_local_minimum_fast(d, i, j, m)) {
+      psi = psi_values[i]
+      rho = rho_values[j]
+
+      # Fast solution calculation
+      solution <- calculate_solution_fast(psi, rho, s_b, s_r, s_length, total_length, gamma,
+                                         min.ploidy, max.ploidy, min.rho, max.rho,
+                                         min.goodness, m, TheoretMaxdist, minimise, allow100percent)
+
+      if (!is.null(solution)) {
+        nropt = nropt + 1
+        optima[[nropt]] = c(m, i, j, solution$ploidy, solution$goodness)
+        localmin[nropt] = m
+
+        if (verbose) {
+          cat("Found solution", nropt, "at point", points_checked, "/", length(search_order),
+              ": rho=", round(solution$rho, 3), ", psi=", round(solution$psi, 3),
+              ", goodness=", round(solution$goodness, 2), "\n")
+        }
+
+        # Early termination if we found a good solution
+        if (early_termination && solution$goodness >= (min.goodness + 5)) {
+          if (verbose) cat("Early termination - found high quality solution\n")
+          break
+        }
+      }
+    }
+
+    # Progress update
+    if (verbose && points_checked %% 2000 == 0) {
+      cat("Progress:", points_checked, "/", length(search_order), "points checked\n")
+    }
+  }
+
+  # Handle 100% aberrant case (only if no solutions found)
+  if (allow100percent & nropt == 0) {
+    if (verbose) cat("Trying 100% aberrant solutions...\n")
+
+    cold = which(rho_values > 1)
+    d_modified <- d
+    d_modified[,cold] = 1E20
+
+    # Use same optimized search for 100% case
+    search_order_100 <- create_smart_search_order(d_modified, smart_ordering, FALSE)
+
+    for (idx in 1:length(search_order_100)) {
+      point <- search_order_100[[idx]]
+      i <- point$i
+      j <- point$j
+
+      m = d_modified[i,j]
+      if (!is.finite(m)) next
+
+      if (is_local_minimum_fast(d_modified, i, j, m)) {
+        psi = psi_values[i]
+        rho = rho_values[j]
+
+        solution <- calculate_solution_fast(psi, rho, s_b, s_r, s_length, total_length, gamma,
+                                           min.ploidy, max.ploidy, min.rho, max.rho,
+                                           min.goodness, m, TheoretMaxdist, minimise, allow100percent,
+                                           skip_zero_check = TRUE)
 
         if (!is.null(solution)) {
-          results[[length(results) + 1]] <- solution
+          nropt = nropt + 1
+          optima[[nropt]] = c(m, i, j, solution$ploidy, solution$goodness)
+          localmin[nropt] = m
+          break  # Early termination for 100% case too
         }
       }
     }
   }
 
-  if (verbose && length(results) > 0) {
-    cat("  Fallback search found", length(results), "solutions\n")
-  }
+  optimization_time <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
 
-  return(results)
-}
+  # Process results (IDENTICAL to original logic)
+  psi_opt1_plot = vector(mode="numeric")
+  rho_opt1_plot = vector(mode="numeric")
 
-#' Calculate Battenberg solution with error handling
-calculate_battenberg_solution <- function(psi, rho, s, gamma, min.ploidy, max.ploidy, min.rho, max.rho,
-                                         min.goodness, distance_value, TheoretMaxdist, minimise,
-                                         allow100percent, skip_zero_check = FALSE) {
+  if (nropt>0) {
+    write.table(paste(nropt, " copy number solutions found", sep=""), file=cnaStatusFile, quote=F, col.names=F, row.names=F)
+    optlim = sort(localmin)[1]
 
-  tryCatch({
-    # Validate inputs
-    if (is.na(psi) || is.na(rho) || !is.finite(psi) || !is.finite(rho) || rho <= 0) {
-      return(NULL)
-    }
-
-    # Calculate copy numbers
-    nA <- (rho-1-(s[,"b"]-1)*2^(s[,"r"]/gamma)*((1-rho)*2+rho*psi))/rho
-    nB <- (rho-1+s[,"b"]*2^(s[,"r"]/gamma)*((1-rho)*2+rho*psi))/rho
-
-    if (any(is.na(nA)) || any(is.na(nB)) || any(!is.finite(nA)) || any(!is.finite(nB))) {
-      return(NULL)
-    }
-
-    # Calculate ploidy
-    ploidy <- sum((nA+nB) * s[,"length"]) / sum(s[,"length"])
-
-    if (is.na(ploidy) || !is.finite(ploidy)) {
-      return(NULL)
-    }
-
-    # Calculate goodness of fit
-    if(minimise) {
-      goodnessOfFit <- (1 - distance_value/TheoretMaxdist) * 100
-    } else {
-      goodnessOfFit <- -distance_value/TheoretMaxdist * 100
-    }
-
-    if (is.na(goodnessOfFit) || !is.finite(goodnessOfFit)) {
-      return(NULL)
-    }
-
-    # Check constraints
-    if (ploidy < min.ploidy || ploidy > max.ploidy ||
-        rho < min.rho || rho > max.rho ||
-        goodnessOfFit < min.goodness) {
-      return(NULL)
-    }
-
-    # Check zero conditions unless skipped
-    if (!skip_zero_check && !allow100percent) {
-      percentzero <- (sum((round(nA)==0)*s[,"length"])+sum((round(nB)==0)*s[,"length"]))/sum(s[,"length"])
-      perczeroAbb <- (sum((round(nA)==0)*s[,"length"]*ifelse(s[,"b"]==0.5,0,1))+sum((round(nB)==0)*s[,"length"]*ifelse(s[,"b"]==0.5,0,1)))/sum(s[,"length"]*ifelse(s[,"b"]==0.5,0,1))
-
-      if (is.na(perczeroAbb)) perczeroAbb <- 0
-
-      if (!(percentzero > 0.01 || perczeroAbb > 0.1)) {
-        return(NULL)
+    for (i in 1:length(optima)) {
+      if(optima[[i]][1] == optlim) {
+        psi_opt1 = psi_values[optima[[i]][2]]
+        rho_opt1 = rho_values[optima[[i]][3]]
+        if(rho_opt1 > 1) {
+          rho_opt1 = 1
+        }
+        ploidy_opt1 = optima[[i]][4]
+        goodnessOfFit_opt1 = optima[[i]][5]
+        psi_opt1_plot = c(psi_opt1_plot, psi_opt1)
+        rho_opt1_plot = c(rho_opt1_plot, rho_opt1)
       }
     }
+  } else {
+    write.table(paste("no copy number solutions found", sep=""), file=cnaStatusFile, quote=F, col.names=F, row.names=F)
+    if (verbose) cat("No suitable copy number solution found\n")
+    psi = NA
+    ploidy = NA
+    rho = NA
+    psi_opt1_plot = -1
+    rho_opt1_plot = -1
 
     return(list(
       psi = psi,
-      rho = min(rho, 1.0),
+      rho = rho,
       ploidy = ploidy,
-      goodness = goodnessOfFit,
-      distance = distance_value
+      convergence_info = list(
+        converged = FALSE,
+        optimization_time = optimization_time,
+        points_checked = points_checked
+      )
     ))
+  }
 
-  }, error = function(e) {
-    return(NULL)
-  })
-}
+  if (verbose) {
+    cat("Found", nropt, "solutions in", round(optimization_time, 2), "seconds\n")
+    cat("Checked", points_checked, "/", length(search_order), "points (",
+        round(100 * points_checked / length(search_order), 1), "% of search space)\n")
+    cat("Best solution: rho =", round(rho_opt1, 3), ", psi =", round(psi_opt1, 3),
+        ", ploidy =", round(ploidy_opt1, 3), ", goodness =", round(goodnessOfFit_opt1, 2), "\n")
+  }
 
-#' Finalize result and generate outputs
-finalize_battenberg_result <- function(best_result, all_results, optimization_time,
-                                      analysis, distancepng, copynumberprofilespng, nonroundedprofilepng,
-                                      d, minimise, b, r, s, gamma, ch, lrr, bafsegmented,
-                                      chr.names, reliabilityFile, cnaStatusFile, verbose) {
+  # Generate plots (IDENTICAL to original)
+  if (analysis=="paired"){
+    if (!is.na(distancepng)) {
+      png(filename = distancepng, width = 1000, height = 1000, res = 1000/7, type = "cairo")
+    }
+    ASCAT::ascat.plotSunrise(-d, psi_opt1_plot, rho_opt1_plot, minimise)
+    if (!is.na(distancepng)) { dev.off() }
+  }
 
-  psi_opt1 <- best_result$psi
-  rho_opt1 <- best_result$rho
-  ploidy_opt1 <- best_result$ploidy
-  goodnessOfFit_opt1 <- best_result$goodness
+  rho = rho_opt1
+  psi = psi_opt1
+  ploidy = ploidy_opt1
 
-  # Create convergence information
-  n_solutions <- length(all_results)
-  convergence_info <- list(
-    converged = n_solutions > 0,
-    n_solutions_found = n_solutions,
-    optimization_time = optimization_time,
-    method_used = if(n_solutions == 1) "original" else "enhanced"
-  )
+  nAfull = (rho-1-(b-1)*2^(r/gamma)*((1-rho)*2+rho*psi))/rho
+  nBfull = (rho-1+b*2^(r/gamma)*((1-rho)*2+rho*psi))/rho
+  nA = pmax(round(nAfull),0)
+  nB = pmax(round(nBfull),0)
 
-  write.table(paste(n_solutions, "solutions found"),
-              file=cnaStatusFile, quote=F, col.names=F, row.names=F)
+  rBacktransform = gamma*log((rho*(nA+nB)+(1-rho)*2)/((1-rho)*2+rho*psi),2)
+  bBacktransform = (1-rho+rho*nB)/(2-2*rho+rho*(nA+nB))
+  rConf = ifelse(abs(rBacktransform)>0.15,pmin(100,pmax(0,100*(1-abs(rBacktransform-r)/abs(r)))),NA)
+  bConf = ifelse(bBacktransform!=0.5,pmin(100,pmax(0,ifelse(b==0.5,100,100*(1-abs(bBacktransform-b)/abs(b-0.5))))),NA)
 
-  # Generate plots (same as original)
-  generate_plots_battenberg(analysis, distancepng, copynumberprofilespng, nonroundedprofilepng,
-                           d, psi_opt1, rho_opt1, ploidy_opt1, goodnessOfFit_opt1, minimise,
-                           b, r, s, gamma, ch, lrr, bafsegmented, chr.names, reliabilityFile)
+  if(!is.na(reliabilityFile)){
+    write.table(data.frame(segmentedBAF=b,backTransformedBAF=bBacktransform,confidenceBAF=bConf,segmentedR=r,backTransformedR=rBacktransform,confidenceR=rConf,nA=nA,nB=nB,nAfull=nAfull,nBfull=nBfull), reliabilityFile,sep=",",row.names=F)
+  }
+  confidence = ifelse(is.na(rConf),bConf,ifelse(is.na(bConf),rConf,(rConf+bConf)/2))
+
+  # Create plots
+  if (!is.na(copynumberprofilespng)) {
+    png(filename = copynumberprofilespng, width = 2000, height = 500, res = 200, type = "cairo")
+  }
+  ASCAT::ascat.plotAscatProfile(n1all = nA, n2all = nB, heteroprobes = TRUE, ploidy = ploidy_opt1, rho = rho_opt1, goodnessOfFit = goodnessOfFit_opt1, nonaberrant = FALSE, ch = ch, lrr = lrr, bafsegmented = bafsegmented, chrs=chr.names)
+  if (!is.na(copynumberprofilespng)) { dev.off() }
+
+  if (!is.na(nonroundedprofilepng)) {
+    png(filename = nonroundedprofilepng, width = 2000, height = 500, res = 200, type = "cairo")
+  }
+  ASCAT::ascat.plotNonRounded(ploidy = ploidy_opt1, rho = rho_opt1, goodnessOfFit = goodnessOfFit_opt1, nonaberrant = FALSE, nAfull = nAfull, nBfull = nBfull, bafsegmented = bafsegmented, ch = ch, lrr = lrr, chrs=chr.names)
+  if (!is.na(nonroundedprofilepng)) { dev.off() }
 
   return(list(
-    psi = psi_opt1,
-    rho = rho_opt1,
-    ploidy = ploidy_opt1,
-    convergence_info = convergence_info
+    psi = psi,
+    rho = rho,
+    ploidy = ploidy,
+    convergence_info = list(
+      converged = TRUE,
+      n_solutions_found = nropt,
+      optimization_time = optimization_time,
+      points_checked = points_checked,
+      search_efficiency = points_checked / length(search_order)
+    )
   ))
 }
 
-#' Helper functions for parallel processing
-setup_parallel_environment <- function(n_cores, verbose = TRUE) {
-  hpc_detected <- FALSE
-  hpc_scheduler <- "unknown"
-  
-  if (Sys.getenv("SLURM_JOB_ID", unset = "") != "") {
-    hpc_detected <- TRUE
-    hpc_scheduler <- "SLURM"
-    if (is.null(n_cores)) {
-      slurm_cpus <- as.numeric(Sys.getenv("SLURM_CPUS_PER_TASK", unset = "1"))
-      n_cores <- max(1, slurm_cpus)
-    }
-  } else if (Sys.getenv("PBS_JOBID", unset = "") != "") {
-    hpc_detected <- TRUE
-    hpc_scheduler <- "PBS/Torque"
-    if (is.null(n_cores)) {
-      pbs_ncpus <- as.numeric(Sys.getenv("PBS_NCPUS", unset = "1"))
-      n_cores <- max(1, pbs_ncpus)
+#' Create smart search order - best regions first
+create_smart_search_order <- function(d, smart_ordering, verbose) {
+
+  # Get all valid search points (excluding borders)
+  nr <- nrow(d)
+  nc <- ncol(d)
+  search_points <- list()
+
+  for (i in 4:(nr-3)) {
+    for (j in 4:(nc-3)) {
+      if (is.finite(d[i,j])) {
+        search_points[[length(search_points) + 1]] <- list(i = i, j = j, distance = d[i,j])
+      }
     }
   }
-  
-  if (is.null(n_cores)) {
-    n_cores <- max(1, parallel::detectCores() - 1)
+
+  if (!smart_ordering) {
+    # Return in original order
+    return(lapply(search_points, function(p) list(i = p$i, j = p$j)))
   }
-  
-  if (verbose && hpc_detected) {
-    cat("HPC environment detected:", hpc_scheduler, "with", n_cores, "cores\n")
+
+  # Smart ordering: best distances first
+  distances <- sapply(search_points, function(p) p$distance)
+  order_idx <- order(distances)
+  ordered_points <- search_points[order_idx]
+
+  if (verbose) {
+    cat("Smart ordering: searching best", length(ordered_points), "regions first\n")
+    cat("Distance range:", round(min(distances), 4), "to", round(max(distances), 4), "\n")
   }
-  
-  return(list(n_cores = n_cores, hpc_detected = hpc_detected, scheduler = hpc_scheduler))
+
+  return(lapply(ordered_points, function(p) list(i = p$i, j = p$j)))
+}
+
+#' Fast local minimum check (optimized version of original 7x7)
+is_local_minimum_fast <- function(d, i, j, center_value) {
+
+  # Check 7x7 neighborhood (same as original)
+  i_min <- i - 3
+  i_max <- i + 3
+  j_min <- j - 3
+  j_max <- j + 3
+
+  # Bounds checking
+  if (i_min < 1 || i_max > nrow(d) || j_min < 1 || j_max > ncol(d)) {
+    return(FALSE)
+  }
+
+  # Extract neighborhood
+  neighborhood <- d[i_min:i_max, j_min:j_max]
+
+  # Set center to maximum to exclude it from minimum check
+  neighborhood[4, 4] <- max(neighborhood, na.rm = TRUE)
+
+  # Check if center is local minimum
+  return(min(neighborhood, na.rm = TRUE) > center_value)
+}
+
+#' Fast solution calculation (vectorized and optimized)
+calculate_solution_fast <- function(psi, rho, s_b, s_r, s_length, total_length, gamma,
+                                   min.ploidy, max.ploidy, min.rho, max.rho,
+                                   min.goodness, distance_value, TheoretMaxdist, minimise,
+                                   allow100percent, skip_zero_check = FALSE) {
+
+  # Quick input validation
+  if (is.na(psi) || is.na(rho) || psi <= 0 || rho <= 0 || rho > 1.1) {
+    return(NULL)
+  }
+
+  # Quick constraint pre-check
+  if (psi < min.ploidy || psi > max.ploidy || rho < min.rho || rho > max.rho) {
+    return(NULL)
+  }
+
+  # Vectorized copy number calculation
+  multiplier <- 2^(s_r/gamma) * ((1-rho)*2 + rho*psi)
+  nA <- (rho - 1 - (s_b - 1) * multiplier) / rho
+  nB <- (rho - 1 + s_b * multiplier) / rho
+
+  # Quick validation
+  if (any(is.na(nA)) || any(is.na(nB)) || any(!is.finite(nA)) || any(!is.finite(nB))) {
+    return(NULL)
+  }
+
+  # Vectorized ploidy calculation
+  ploidy <- sum((nA + nB) * s_length) / total_length
+
+  if (is.na(ploidy) || !is.finite(ploidy) || ploidy <= 0) {
+    return(NULL)
+  }
+
+  # Final ploidy constraint check
+  if (ploidy < min.ploidy || ploidy > max.ploidy) {
+    return(NULL)
+  }
+
+  # Fast goodness calculation
+  if(minimise) {
+    goodnessOfFit <- (1 - distance_value/TheoretMaxdist) * 100
+  } else {
+    goodnessOfFit <- -distance_value/TheoretMaxdist * 100
+  }
+
+  if (is.na(goodnessOfFit) || !is.finite(goodnessOfFit) || goodnessOfFit < min.goodness) {
+    return(NULL)
+  }
+
+  # Zero check (only if needed)
+  if (!skip_zero_check && !allow100percent) {
+    nA_rounded <- round(nA)
+    nB_rounded <- round(nB)
+
+    percentzero <- (sum((nA_rounded == 0) * s_length) + sum((nB_rounded == 0) * s_length)) / total_length
+
+    # Fast perczeroAbb calculation
+    baf_mask <- s_b != 0.5
+    if (any(baf_mask)) {
+      denom <- sum(s_length[baf_mask])
+      if (denom > 0) {
+        perczeroAbb <- (sum((nA_rounded == 0) * s_length * baf_mask) +
+                       sum((nB_rounded == 0) * s_length * baf_mask)) / denom
+      } else {
+        perczeroAbb <- 0
+      }
+    } else {
+      perczeroAbb <- 0
+    }
+
+    if (is.na(perczeroAbb)) perczeroAbb <- 0
+
+    if (!(percentzero > 0.01 || perczeroAbb > 0.1)) {
+      return(NULL)
+    }
+  }
+
+  return(list(
+    psi = psi,
+    rho = min(rho, 1.0),
+    ploidy = ploidy,
+    goodness = goodnessOfFit,
+    distance = distance_value
+  ))
 }
 
 #' Generate plots

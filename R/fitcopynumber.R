@@ -162,7 +162,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     cnaStatusFile = paste(outputfile.prefix, "copynumber_solution_status.txt", sep="", collapse="")
     
     if(enhanced_grid_search) {
-      ascat_optimum_pair = runASCAT_enhanced(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, reliabilityFile=NA, min.ploidy=min.ploidy, max.ploidy=max.ploidy, min.rho=min.rho, max.rho=max.rho, min.goodness, chr.names=chr.names, analysis=analysis, n_cores=nthreads, enable_robust_fallback=TRUE, parallel=TRUE, verbose=TRUE)
+      ascat_optimum_pair = runASCAT_enhanced(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, reliabilityFile=NA, min.ploidy=min.ploidy, max.ploidy=max.ploidy, min.rho=min.rho, max.rho=max.rho, min.goodness, chr.names=chr.names, analysis=analysis, uninformative_BAF_threshold=uninformative_BAF_threshold, verbose=TRUE)
     } else {
       ascat_optimum_pair = runASCAT(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, reliabilityFile=NA, min.ploidy=min.ploidy, max.ploidy=max.ploidy, min.rho=min.rho, max.rho=max.rho, min.goodness, chr.names=chr.names, analysis=analysis) # kjd 4-2-2014
     }
