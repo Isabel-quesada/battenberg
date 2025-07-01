@@ -291,11 +291,18 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
 
   # NAP - November 2023
   # Recalculate PGA.is.clonal to match the final copy number profile in copynumber.txt file (previously subclones.txt file)
-  subcloneres$length=subcloneres$endpos-subcloneres$startpos
-  subcloneres_subclonal=subcloneres[which(subcloneres$frac1_A<1),]
-  diploid=which(subcloneres$nMaj1_A==1 & subcloneres$nMin1_A==1 & subcloneres$frac1_A==1)
-  cna=subcloneres[-diploid,]
-
+  subcloneres$length = subcloneres$endpos-subcloneres$startpos
+  subcloneres_subclonal = subcloneres[which(subcloneres$frac1_A<1),]
+  diploid = which(subcloneres$nMaj1_A==1 & subcloneres$nMin1_A==1 & subcloneres$frac1_A==1)
+  # NAP - June 2025 
+  # Check 'diploid' length for rare edge cases
+  if (length(diploid) > 0) {
+    cna = subcloneres[-diploid,]
+  } else {
+    cna = subcloneres
+    print("No diploid region found in copy number profile - likely due to WGD or error in fitting copy number in rare cases") 
+  }
+  
   if(nrow(cna) == 0 || sum(cna$length) == 0) {
     # No copy number alterations found
     goodness <- 1.0  # 100% clonal (no CNAs to be subclonal)
