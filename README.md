@@ -113,6 +113,14 @@ Finally, a range of plots show intermediate steps and can occasionally be useful
 
 Battenberg can take prior breakpoints, from structural variants (SVs) for example, as input. SV breakpoints are typically much more precise and a pair of SVs can be closer together then what typically can be obtained from a BAF or coverage track. It is therefore adventageous to include prior breakpoints in a Battenberg run. However, including too many (as in 100s) incorrect breakpoints can have adverse effects by allowing many small segments to be affected by noise where there isn't any signal and increasing the runtime of the pipeline. It is therefore advised to `filter prior breakpoints from SVs such that the genome is slightly oversegmented.` Finally, some SV types, such as inversions, do not constitute a change in copy number and therefore also add breakpoints that should not be considered. It is therefore also advised to `filter breakpoints from SVs that do not cause a change in copynumber, such as inversions`. Please note that the chromosome names in the SV file **do not** include the "chr" prefix.
 
+## Documentation
+
+Full documentation for this package is available at: https://wedge-lab.github.io/battenberg/
+The documentation includes:
+- Function reference with examples
+- Getting started guide
+- Illustrative vignettes
+
 ## Building a release
 
 In RStudio: In the Build tab, click Check Package
