@@ -36,7 +36,21 @@ The bundle contains the following files:
   * battenberg_snp6_exe.tgz (SNP6 only)
   * battenberg_snp6_ref.tgz (SNP6 only)
 
-`GRCh38` reference files may be downloaded from here: https://ora.ox.ac.uk/objects/uuid:08e24957-7e76-438a-bd38-66c48008cf52
+`GRCh38` reference files for Battenberg v3.0.0 may be downloaded from here: https://doi.org/10.48420/30406441
+
+The bundle contains the following files:
+  * 1000G_loci_hg38.zip
+  * imputation.zip
+  * shapeit2.zip
+  * beagle5.zip
+  * probloci.zip
+  * GC_correction_hg38.zip
+  * RT_correction_hg38.zip
+  * chromosome_coordinates_hg38.txt
+  * chromosome_coordinates_hg38_chr.txt
+  * README.txt
+
+Original `GRCh38` reference files for previous versions of Battenberg may be downloaded from here: https://ora.ox.ac.uk/objects/uuid:08e24957-7e76-438a-bd38-66c48008cf52
 
 The bundle contains the following files:
   * 1000G_loci_hg38.zip
