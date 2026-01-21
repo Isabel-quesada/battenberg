@@ -214,10 +214,28 @@ battenberg = function(analysis="paired",
   for (sampleidx in 1:nsamples) {
     if (!skip_preprocessing[sampleidx]) {
       if (data_type=="wgs" | data_type=="WGS") {
-        # Setup for parallel computing
-        clp = parallel::makeCluster(nthreads,outfile="")
+        # ****** Setup for parallel computing (UPDATED) ******
+        clp <- parallel::makeCluster(min(nthreads, nsamples), outfile = "")
         doParallel::registerDoParallel(clp)
-        
+
+        # Export necessary variables/functions to the cluster
+        parallel::clusterExport(clp, varlist = c(
+          "fit.copy.number", "callSubclones", "callChrXsubclones", "make_posthoc_plots",
+          "cnfit_to_refit_suggestions", "samplename", "nthreads", "nsamples", "libs",
+          "data_type", "analysis", "clonality_dist_metric", "ascat_dist_metric",
+          "min_ploidy", "max_ploidy", "min_rho", "max_rho", "min_goodness",
+          "uninformative_BAF_threshold", "platform_gamma", "prior_breakpoints_file",
+          "chrom_names", "max_allowed_state", "cn_upper_limit", "calc_seg_baf_option",
+          "ismale", "genomebuild"
+        ), envir = environment())
+
+        # Load required libraries on each node
+        parallel::clusterEvalQ(clp, {
+          .libPaths(libs)
+          library(foreach) # Add any others if needed
+        })
+
+        # *****************************************************
         if (analysis == "paired"){
           
           if (is.null(normalname)|is.na(normalname)){
@@ -335,9 +353,28 @@ battenberg = function(analysis="paired",
         externalhaplotypeprefix <- NA
       }
       
-      # Setup for parallel computing
-      clp = parallel::makeCluster(nthreads,outfile="")
+      # ****** Setup for parallel computing (UPDATED) ******
+      clp <- parallel::makeCluster(min(nthreads, nsamples), outfile = "")
       doParallel::registerDoParallel(clp)
+
+      # Export necessary variables/functions to the cluster
+      parallel::clusterExport(clp, varlist = c(
+        "fit.copy.number", "callSubclones", "callChrXsubclones", "make_posthoc_plots",
+        "cnfit_to_refit_suggestions", "samplename", "nthreads", "nsamples", "libs",
+        "data_type", "analysis", "clonality_dist_metric", "ascat_dist_metric",
+        "min_ploidy", "max_ploidy", "min_rho", "max_rho", "min_goodness",
+        "uninformative_BAF_threshold", "platform_gamma", "prior_breakpoints_file",
+        "chrom_names", "max_allowed_state", "cn_upper_limit", "calc_seg_baf_option",
+        "ismale", "genomebuild"
+      ), envir = environment())
+
+      # Load required libraries on each node
+      parallel::clusterEvalQ(clp, {
+        .libPaths(libs)
+        library(foreach) # Add any others if needed
+      })
+
+      # *****************************************************
       
       # Reconstruct haplotypes
       # mclapply(1:length(chrom_names), function(chrom) {
@@ -438,9 +475,28 @@ battenberg = function(analysis="paired",
     multisamplehaplotypeprefix <- paste0(normalname, "_multisample_haplotypes_chr")
     
     
-    # Setup for parallel computing
-    clp = parallel::makeCluster(nthreads,outfile="")
+    # ****** Setup for parallel computing (UPDATED) ******
+    clp <- parallel::makeCluster(min(nthreads, nsamples), outfile = "")
     doParallel::registerDoParallel(clp)
+
+    # Export necessary variables/functions to the cluster
+    parallel::clusterExport(clp, varlist = c(
+      "fit.copy.number", "callSubclones", "callChrXsubclones", "make_posthoc_plots",
+      "cnfit_to_refit_suggestions", "samplename", "nthreads", "nsamples", "libs",
+      "data_type", "analysis", "clonality_dist_metric", "ascat_dist_metric",
+      "min_ploidy", "max_ploidy", "min_rho", "max_rho", "min_goodness",
+      "uninformative_BAF_threshold", "platform_gamma", "prior_breakpoints_file",
+      "chrom_names", "max_allowed_state", "cn_upper_limit", "calc_seg_baf_option",
+      "ismale", "genomebuild"
+    ), envir = environment())
+
+    # Load required libraries on each node
+    parallel::clusterEvalQ(clp, {
+      .libPaths(libs)
+      library(foreach) # Add any others if needed
+    })
+
+    # *****************************************************
     
     # Reconstruct haplotypes
     .libPaths()
@@ -527,9 +583,28 @@ battenberg = function(analysis="paired",
     
   }
   
-  # Setup for parallel computing
-  clp = parallel::makeCluster(min(nthreads, nsamples),outfile="")
+  # ****** Setup for parallel computing (UPDATED) ******
+  clp <- parallel::makeCluster(min(nthreads, nsamples), outfile = "")
   doParallel::registerDoParallel(clp)
+
+  # Export necessary variables/functions to the cluster
+  parallel::clusterExport(clp, varlist = c(
+    "fit.copy.number", "callSubclones", "callChrXsubclones", "make_posthoc_plots",
+    "cnfit_to_refit_suggestions", "samplename", "nthreads", "nsamples", "libs",
+    "data_type", "analysis", "clonality_dist_metric", "ascat_dist_metric",
+    "min_ploidy", "max_ploidy", "min_rho", "max_rho", "min_goodness",
+    "uninformative_BAF_threshold", "platform_gamma", "prior_breakpoints_file",
+    "chrom_names", "max_allowed_state", "cn_upper_limit", "calc_seg_baf_option",
+    "ismale", "genomebuild"
+  ), envir = environment())
+
+  # Load required libraries on each node
+  parallel::clusterEvalQ(clp, {
+    .libPaths(libs)
+    library(foreach) # Add any others if needed
+  })
+
+  # *****************************************************
   # for (sampleidx in 1:nsamples) {
   foreach::foreach (sampleidx=1:nsamples) %dopar% {
     .libPaths(libs)
